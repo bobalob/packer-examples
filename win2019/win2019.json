@@ -1,0 +1,95 @@
+{
+  "variables": {
+    "localuser_win_pass": "superP@ss"
+  },
+  "builders": [
+    {
+      "vm_name": "win2019",
+      "output_directory": "vm/win2019-qemu",
+      "boot_wait": "6m",
+      "disk_cache": "unsafe",
+      "disk_interface": "virtio-scsi",
+      "disk_size": "51200",
+      "format": "raw",
+      "headless": true,
+      "iso_url": "iso/17763.379.190312-0539.rs5_release_svc_refresh_SERVER_EVAL_x64FRE_en-us.iso",
+      "iso_checksum": "sha256:221f9acbc727297a56674a0f1722b8ac7b6e840b4e1ffbdd538a9ed0da823562",
+      "net_device": "e1000",
+      "communicator": "winrm",
+      "winrm_username": "administrator",
+      "winrm_password": "{{user `localuser_win_pass`}}",
+      "winrm_port": "5985",
+      "winrm_timeout": "2h",
+      "shutdown_command": "c:\\windows\\system32\\sysprep\\sysprep.exe /oobe /generalize /mode:vm /shutdown",
+      "shutdown_timeout": "30m",
+      "skip_compaction": "false",
+      "floppy_files": [
+        "files/Autounattend.xml",
+        "files/virtio_floppy/",
+        "files/bootstrap-win.ps1"
+      ],
+      "accelerator": "kvm",
+      "type": "qemu",
+      "qemuargs": [
+        [
+          "-m",
+          "2048"
+        ],
+        [
+          "-smp",
+          "2"
+        ]
+      ]
+    }
+  ],
+  "provisioners": [
+    {
+      "destination": "C:/Windows/Temp/LAPS.x64.msi",
+      "only": [
+        "qemu"
+      ],
+      "source": "files/LAPS.x64.msi",
+      "type": "file"
+    },
+    {
+      "destination": "C:/Windows/Temp/Nutanix-VirtIO-1.1.6-amd64.msi",
+      "only": [
+        "qemu"
+      ],
+      "source": "files/Nutanix-VirtIO-1.1.6-amd64.msi",
+      "type": "file"
+    },
+    {
+      "elevated_password": "{{user `localuser_win_pass`}}",
+      "elevated_user": "administrator",
+      "only": [
+        "qemu"
+      ],
+      "type": "powershell",
+      "inline": [
+	"Start-Transcript \"C:\\Windows\\Temp\\install-msi.log\"",
+	"$msiList = @(",
+	"  \"C:\\Windows\\Temp\\LAPS.x64.msi\",",
+	"  \"C:\\Windows\\Temp\\Nutanix-VirtIO-1.1.6-amd64.msi\"",
+	")",
+	"foreach ($msi in $msiList) {",
+	"  Write-Host \"Installing $($msi)\"",
+	"  Start-Process \"c:\\windows\\System32\\msiexec.exe\" -wait -argumentlist \"/passive /norestart /i $($msi)\"",
+	"  Write-Host \"Install $($msi) complete\"",
+	"}",
+	"Write-Host 'Done'",
+	"Stop-Transcript",
+	"exit 0"
+      ]
+    },
+    {
+	"type": "windows-update",
+	"search_criteria": "IsInstalled=0",
+	"filters": [
+	    "exclude:$_.Title -like '*Preview*'",
+	    "include:$true"
+	]
+    }
+  ]
+}
+
